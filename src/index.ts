@@ -7,13 +7,13 @@ type Task = Record<{
     body: string;
     status: boolean;
     createdAt: nat64;
-}>
+}>;
 
 type TaskPayload = Record<{
     title: string;
     body: string;
     status: boolean;
-}>
+}>;
 
 const taskStorage = new StableBTreeMap<string, Task>(0, 44, 1024);
 
@@ -24,9 +24,10 @@ export function getTasks(): Result<Vec<Task>, string> {
 
 $query;
 export function getTask(id: string): Result<Task, string> {
-    return match(taskStorage.get(id), {
+    const task = taskStorage.get(id);
+    return match(task, {
         Some: (task) => Result.Ok<Task, string>(task),
-        None: () => Result.Err<Task, string>(`a task with id=${id} not found`)
+        None: () => Result.Err<Task, string>(`A task with id=${id} not found`)
     });
 }
 
@@ -38,34 +39,40 @@ export function addTask(payload: TaskPayload): Result<Task, string> {
 }
 
 $update;
-export function updateMessage(id: string, payload: TaskPayload): Result<Task, string> {
-    return match(taskStorage.get(id), {
-        Some: (task) => {
-            const updatedTask: Task = { ...task, ...payload };
-            taskStorage.insert(task.id, updatedTask);
-            return Result.Ok<Task, string>(updatedTask);
-        },
-        None: () => Result.Err<Task, string>(`couldn't update a task with id=${id}. task not found`)
-    });
+export function updateTask(id: string, payload: TaskPayload): Result<Task, string> {
+    const task = taskStorage.get(id);
+    if (!task) {
+        return Result.Err<Task, string>(`Couldn't update a task with id=${id}. Task not found`);
+    }
+
+    const updatedTask: Task = { ...task, ...payload };
+    taskStorage.insert(task.id, updatedTask);
+    return Result.Ok(updatedTask);
 }
 
 $update;
 export function deleteTask(id: string): Result<Task, string> {
-    return match(taskStorage.remove(id), {
-        Some: (deletedTask) => Result.Ok<Task, string>(deletedTask),
-        None: () => Result.Err<Task, string>(`couldn't delete a task with id=${id}. task not found.`)
-    });
+    const deletedTask = taskStorage.remove(id);
+    if (!deletedTask) {
+        return Result.Err<Task, string>(`Couldn't delete a task with id=${id}. Task not found.`);
+    }
+
+    return Result.Ok<Task, string>(deletedTask);
 }
 
-// a workaround to make uuid package work with Azle
-globalThis.crypto = {
-    getRandomValues: () => {
-        let array = new Uint8Array(32);
+// Encapsulate the workaround for 'uuid' package
+function setupUuidWorkaround() {
+    globalThis.crypto = {
+        getRandomValues: () => {
+            let array = new Uint8Array(32);
 
-        for (let i = 0; i < array.length; i++) {
-            array[i] = Math.floor(Math.random() * 256);
+            for (let i = 0; i < array.length; i++) {
+                array[i] = Math.floor(Math.random() * 256);
+            }
+
+            return array;
         }
+    };
+}
 
-        return array;
-    }
-}; 
+setupUuidWorkaround();

@@ -1,19 +1,19 @@
-import { $query, $update, Record, StableBTreeMap, Vec, match, Result, nat64, ic, Opt } from 'azle';
+import { $query, $update, Record, StableBTreeMap, Vec, match, Result, nat64, ic } from 'azle';
 import { v4 as uuidv4 } from 'uuid';
 
 type Task = Record<{
     id: string;
     title: string;
     body: string;
-    status: boolean;
+    completed: boolean;
     createdAt: nat64;
-}>
+}>;
 
 type TaskPayload = Record<{
     title: string;
     body: string;
-    status: boolean;
-}>
+    completed: boolean;
+}>;
 
 const taskStorage = new StableBTreeMap<string, Task>(0, 44, 1024);
 
@@ -24,10 +24,12 @@ export function getTasks(): Result<Vec<Task>, string> {
 
 $query;
 export function getTask(id: string): Result<Task, string> {
-    return match(taskStorage.get(id), {
-        Some: (task) => Result.Ok<Task, string>(task),
-        None: () => Result.Err<Task, string>(`a task with id=${id} not found`)
-    });
+    const task = taskStorage.get(id);
+    if (task) {
+        return Result.Ok(task);
+    } else {
+        return Result.Err<Task, string>(`A task with id=${id} not found`);
+    }
 }
 
 $update;
@@ -38,23 +40,25 @@ export function addTask(payload: TaskPayload): Result<Task, string> {
 }
 
 $update;
-export function updateMessage(id: string, payload: TaskPayload): Result<Task, string> {
-    return match(taskStorage.get(id), {
-        Some: (task) => {
-            const updatedTask: Task = { ...task, ...payload };
-            taskStorage.insert(task.id, updatedTask);
-            return Result.Ok<Task, string>(updatedTask);
-        },
-        None: () => Result.Err<Task, string>(`couldn't update a task with id=${id}. task not found`)
-    });
+export function updateTask(id: string, payload: TaskPayload): Result<Task, string> {
+    const task = taskStorage.get(id);
+    if (task) {
+        const updatedTask: Task = { ...task, ...payload };
+        taskStorage.insert(task.id, updatedTask);
+        return Result.Ok(updatedTask);
+    } else {
+        return Result.Err<Task, string>(`Couldn't update a task with id=${id}. Task not found`);
+    }
 }
 
 $update;
 export function deleteTask(id: string): Result<Task, string> {
-    return match(taskStorage.remove(id), {
-        Some: (deletedTask) => Result.Ok<Task, string>(deletedTask),
-        None: () => Result.Err<Task, string>(`couldn't delete a task with id=${id}. task not found.`)
-    });
+    const deletedTask = taskStorage.remove(id);
+    if (deletedTask) {
+        return Result.Ok(deletedTask);
+    } else {
+        return Result.Err<Task, string>(`Couldn't delete a task with id=${id}. Task not found.`);
+    }
 }
 
 // a workaround to make uuid package work with Azle
@@ -68,4 +72,4 @@ globalThis.crypto = {
 
         return array;
     }
-}; 
+};

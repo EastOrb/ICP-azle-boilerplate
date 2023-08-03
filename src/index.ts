@@ -7,13 +7,13 @@ type Task = Record<{
     body: string;
     status: boolean;
     createdAt: nat64;
-}>
+}>;
 
 type TaskPayload = Record<{
     title: string;
     body: string;
     status: boolean;
-}>
+}>;
 
 const taskStorage = new StableBTreeMap<string, Task>(0, 44, 1024);
 
@@ -38,7 +38,7 @@ export function addTask(payload: TaskPayload): Result<Task, string> {
 }
 
 $update;
-export function updateMessage(id: string, payload: TaskPayload): Result<Task, string> {
+export function updateTask(id: string, payload: TaskPayload): Result<Task, string> {
     return match(taskStorage.get(id), {
         Some: (task) => {
             const updatedTask: Task = { ...task, ...payload };
@@ -68,4 +68,67 @@ globalThis.crypto = {
 
         return array;
     }
-}; 
+};
+
+// Additional Functions
+
+// Function to mark a task as completed
+$update;
+export function markTaskAsCompleted(id: string): Result<Task, string> {
+    return match(taskStorage.get(id), {
+        Some: (task) => {
+            const updatedTask: Task = { ...task, status: true };
+            taskStorage.insert(task.id, updatedTask);
+            return Result.Ok<Task, string>(updatedTask);
+        },
+        None: () => Result.Err<Task, string>(`couldn't mark task with id=${id} as completed. task not found`)
+    });
+}
+
+// Function to filter tasks by status (completed or pending)
+$query;
+export function getTasksByStatus(status: boolean): Result<Vec<Task>, string> {
+    const filteredTasks = taskStorage.values().filter(task => task.status === status);
+    return Result.Ok(filteredTasks);
+}
+
+// Function to search tasks by keyword in title or body
+$query;
+export function searchTasksByKeyword(keyword: string): Result<Vec<Task>, string> {
+    const filteredTasks = taskStorage.values().filter(task => task.title.includes(keyword) || task.body.includes(keyword));
+    return Result.Ok(filteredTasks);
+}
+
+// Function to get tasks created within a specific time range
+$query;
+export function getTasksByTimeRange(startTime: nat64, endTime: nat64): Result<Vec<Task>, string> {
+    const filteredTasks = taskStorage.values().filter(task => task.createdAt >= startTime && task.createdAt <= endTime);
+    return Result.Ok(filteredTasks);
+}
+
+// Function to get the total number of tasks
+$query;
+export function getTotalTasksCount(): Result<number, string> {
+    return Result.Ok(taskStorage.size());
+}
+
+// Function to clear all completed tasks
+$update;
+export function clearCompletedTasks(): Result<void, string> {
+    const completedTasks = taskStorage.values().filter(task => task.status === true);
+    completedTasks.forEach(task => taskStorage.remove(task.id));
+    return Result.Ok();
+}
+
+// Function to sort tasks by creation date or status
+$query;
+export function sortTasks(sortBy: 'date' | 'status'): Result<Vec<Task>, string> {
+    const sortedTasks = taskStorage.values().sort((a, b) => {
+        if (sortBy === 'date') {
+            return a.createdAt - b.createdAt;
+        } else if (sortBy === 'status') {
+            return a.status === b.status ? 0 : a.status ? -1 : 1;
+        }
+    });
+    return Result.Ok(sortedTasks);
+}
